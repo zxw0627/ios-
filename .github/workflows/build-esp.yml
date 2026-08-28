@@ -1,0 +1,22 @@
+name: Build OriginESP iOS dylib
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile iOS arm64 dylib
+        run: |
+          mkdir -p dist
+          clang -dynamiclib -target arm64-apple-ios -mios-version-min=12.0 \
+            -fobjc-arc -fmodules \
+            -isysroot "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -framework UIKit -framework Foundation \
+            -o dist/OriginESP.dylib OriginESP.mm
+          file dist/OriginESP.dylib
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OriginESP-dylib
+          path: dist/OriginESP.dylib
