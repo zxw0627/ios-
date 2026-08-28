@@ -1,6 +1,5 @@
 #import <UIKit/UIKit.h>
-#import <dlfcn.h>
-#import <link.h>
+#import <mach-o/dyld.h>
 #import <string.h>
 #define OFF_PLAYER_LIST 0x2C8
 #define OFF_ITEM_LIST   0x378
@@ -12,22 +11,27 @@ static uintptr_t 核心=0;
 static uint64_t rq(uintptr_t a){uint64_t v=0;if(a)memcpy(&v,(void*)a,8);return v;}
 static uint32_t rd(uintptr_t a){uint32_t v=0;if(a)memcpy(&v,(void*)a,4);return v;}
 static float rf(uintptr_t a){float v=0;if(a)memcpy(&v,(void*)a,4);return v;}
-// 用 dl_iterate_phdr 遍历本进程内存段(纯Posix, iOS可用, 无需mach_vm)
-struct 段{uintptr_t start,size;};
-static int cb(struct dl_phdr_info* i,size_t s,void* d){
-  (void)s;(void)d;
-  for(int j=0;j<i->dlpi_phnum;j++){
-    if(i->dlpi_phdr[j].p_type==PT_LOAD){
-      uintptr_t b=i->dlpi_addr+i->dlpi_phdr[j].p_vaddr,sz=i->dlpi_phdr[j].p_memsz;
-      if(!sz)continue;
-      for(uintptr_t a=b;a+0x400<=b+sz;a+=4){
-        if(rf(a)==3.5f&&rf(a+4)==5.0f&&rd(a-0x380)==2){核心=a;return 1;}
+// 用 mach-o/dyld 遍历本进程所有镜像段, 搜 3.5f
+static void 搜(void){
+  for(uint32_t i=0;i<_dyld_image_count();i++){
+    const struct mach_header* h=_dyld_get_image_header(i);
+    if(!h)continue;
+    // 遍历 load commands 找 __DATA 段(可读写, 找3.5)
+    struct load_command* lc=(struct load_command*)((uint8_t*)h+sizeof(struct mach_header_64));
+    for(uint32_t j=0;j<h->ncmds;j++){
+      if(lc->cmd==LC_SEGMENT_64){
+        struct segment_command_64* seg=(struct segment_command_64*)lc;
+        if(seg->initprot&VM_PROT_READ&&seg->initprot&VM_PROT_WRITE&&seg->memsize){
+          uintptr_t base=(uintptr_t)(h)+seg->vmaddr;
+          for(uintptr_t a=base;a+0x400<=base+seg->memsize;a+=4){
+            if(rf(a)==3.5f&&rf(a+4)==5.0f&&rd(a-0x380)==2){核心=a;return;}
+          }
+        }
       }
+      lc=(struct load_command*)((uint8_t*)lc+lc->cmdsize);
     }
   }
-  return 0;
 }
-static void 搜(void){dl_iterate_phdr(cb,0);}
 struct E{float x,y,z;int hp;};
 static void 读P(struct E* o,int* n){*n=0;if(!核心)return;uint64_t L=rq(核心-OFF_PLAYER_LIST);if(!L)return;for(int i=0;i<12&&*n<40;i++){uint64_t e=rq(L+i*OFF_STEP);if(!e)continue;float x=rf(e+OFF_PC);int h=rd(e+OFF_HP);if(h==112&&x>0.5f){o[*n].x=x;o[*n].y=rf(e+OFF_PC+4);o[*n].z=rf(e+OFF_PC+8);o[*n].hp=h;(*n)++;}}}
 static void 读I(struct E* o,int* n){*n=0;if(!核心)return;uint64_t L=rq(核心-OFF_ITEM_LIST);if(!L)return;for(int i=0;i<40&&*n<80;i++){uint64_t e=rq(L+i*OFF_STEP);if(!e)continue;float x=rf(e+OFF_IC);int h=rd(e+OFF_HP);if((h==112||h==105)&&(x>0.5f||h==105)){o[*n].x=x;o[*n].y=rf(e+OFF_IC+4);o[*n].z=rf(e+OFF_IC+8);o[*n].hp=h;(*n)++;}}}
