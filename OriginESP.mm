@@ -1,5 +1,6 @@
 #import <UIKit/UIKit.h>
 #import <mach/mach.h>
+#import <mach/mach_vm.h>
 #import <string.h>
 #define OFF_PLAYER_LIST 0x2C8
 #define OFF_ITEM_LIST   0x378
@@ -12,8 +13,8 @@ static uint64_t rq(uintptr_t a){uint64_t v=0;if(a)memcpy(&v,(void*)a,8);return v
 static uint32_t rd(uintptr_t a){uint32_t v=0;if(a)memcpy(&v,(void*)a,4);return v;}
 static float rf(uintptr_t a){float v=0;if(a)memcpy(&v,(void*)a,4);return v;}
 static uintptr_t 搜(void){
-  mach_port_t t=mach_task_self();vm_address_t a=0,s=0;mach_msg_type_number_t c=VM_REGION_BASIC_INFO_COUNT_64;vm_region_basic_info_data_64_t i;
-  for(;;){if(mach_vm_region(t,&a,&s,VM_REGION_BASIC_INFO_64,(vm_region_info_t)&i,&c,MACH_PORT_NULL)!=KERN_SUCCESS)break;
+  mach_port_t t=mach_task_self();vm_address_t a=0,s=0;mach_msg_type_number_t c=VM_REGION_BASIC_INFO_COUNT_64;vm_region_basic_info_data_64_t i;vm_region_flavor_t f=VM_REGION_BASIC_INFO_64;
+  for(;;){if(mach_vm_region(t,&a,&s,f,(vm_region_info_t)&i,&c,MACH_PORT_NULL)!=KERN_SUCCESS)break;
     if(i.protection&VM_PROT_READ){for(vm_address_t o=0;o+0x400<=s;o+=4){if(rf(a+o)==3.5f&&rf(a+o+4)==5.0f&&rd(a+o-0x380)==2)return a+o;}}
     a+=s;s=0;c=VM_REGION_BASIC_INFO_COUNT_64;if(a==0)break;}return 0;}
 struct E{float x,y,z;int hp;};
